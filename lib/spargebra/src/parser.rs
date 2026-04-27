@@ -168,7 +168,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 distinct: distinct.is_some(),
                 args,
             })
-        });
+        })
+        .boxed();
 
     // [148]   	iriOrFunction 	  ::=   	iri ArgList?
     let iri_or_function = iri
@@ -180,7 +181,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 Expression::Iri(name)
             }
         })
-        .spanned();
+        .spanned()
+        .boxed();
 
     // [147]   	Aggregate 	  ::=   	  'COUNT' '(' 'DISTINCT'? ( '*' | Expression ) ')' | 'SUM' '(' 'DISTINCT'? Expression ')' | 'MIN' '(' 'DISTINCT'? Expression ')' | 'MAX' '(' 'DISTINCT'? Expression ')' | 'AVG' '(' 'DISTINCT'? Expression ')' | 'SAMPLE' '(' 'DISTINCT'? Expression ')' | 'GROUP_CONCAT' '(' 'DISTINCT'? Expression ( ';' 'SEPARATOR' '=' String )? ')'
     let aggregate = keyword("COUNT")
@@ -230,7 +232,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             )
             .map(|((distinct, expr), separator)| {
                 Aggregate::GroupConcat(distinct.is_some(), Box::new(expr), separator)
-            }));
+            }))
+        .boxed();
 
     // [146]   	NotExistsFunc 	  ::=   	'NOT' 'EXISTS' GroupGraphPattern
     // [145]   	ExistsFunc 	  ::=   	'EXISTS' GroupGraphPattern
@@ -246,14 +249,16 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             } else {
                 Expression::Exists(Box::new(e))
             }
-        });
+        })
+        .boxed();
 
     // [78]   	ExpressionList 	  ::=   	NIL | '(' Expression ( ',' Expression )* ')'
     let expression_list = expression
         .clone()
         .separated_by(operator(","))
         .collect()
-        .delimited_by(operator("("), operator(")"));
+        .delimited_by(operator("("), operator(")"))
+        .boxed();
 
     // [126]   	Var 	  ::=   	VAR1 | VAR2
     let var = select! {
@@ -354,7 +359,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
     // [140]   	BrackettedExpression 	  ::=   	'(' Expression ')'
     let bracketted_expression = expression
         .clone()
-        .delimited_by(operator("("), operator(")"));
+        .delimited_by(operator("("), operator(")"))
+        .boxed();
 
     // [139]   	ExprTripleTermObject 	  ::=   	iri | RDFLiteral | NumericLiteral | BooleanLiteral | Var | ExprTripleTerm
     #[cfg(feature = "sparql-12")]
@@ -369,7 +375,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         expr_triple_term
             .clone()
             .map(|t| ExprTripleTermObject::TripleTerm(Box::new(t))),
-    ));
+    ))
+    .boxed();
 
     // [138]   	ExprTripleTermSubject 	  ::=   	iri | Var
     #[cfg(feature = "sparql-12")]
@@ -399,7 +406,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 subject,
                 predicate,
                 object,
-            }),
+            })
+            .boxed(),
     );
 
     // [136]   	PrimaryExpression 	  ::=   	BrackettedExpression | BuiltInCall | iriOrFunction | RDFLiteral | NumericLiteral | BooleanLiteral | Var | ExprTripleTerm
@@ -549,7 +557,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             subject,
             predicate,
             object,
-        }),
+        })
+        .boxed(),
     );
 
     // [121]   	TripleTermObject 	  ::=   	Var | iri | RDFLiteral | NumericLiteral | BooleanLiteral | BlankNode | TripleTerm
@@ -582,7 +591,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 subject,
                 predicate,
                 object,
-            }),
+            })
+            .boxed(),
     );
 
     // [118]   	ReifiedTripleObject 	  ::=   	Var | iri | RDFLiteral | NumericLiteral | BooleanLiteral | BlankNode | ReifiedTriple | TripleTerm
@@ -622,7 +632,9 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
 
     // [70]   	Reifier 	  ::=   	'~' VarOrReifierId?
     #[cfg(feature = "sparql-12")]
-    let reifier = operator("~").ignore_then(var_or_reifier_id.or_not());
+    let reifier = operator("~")
+        .ignore_then(var_or_reifier_id.or_not())
+        .boxed();
 
     // [116]   	ReifiedTriple 	  ::=   	'<<' ReifiedTripleSubject Verb ReifiedTripleObject Reifier? '>>'
     #[cfg(feature = "sparql-12")]
@@ -638,7 +650,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 predicate,
                 object,
                 reifier: reifier.flatten(),
-            }),
+            })
+            .boxed(),
     );
 
     // [115]   	VarOrTerm 	  ::=   	Var | iri | RDFLiteral | NumericLiteral | BooleanLiteral | BlankNode | NIL | TripleTerm
@@ -652,7 +665,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         nil.clone().to(VarOrTerm::Nil),
         #[cfg(feature = "sparql-12")]
         triple_term.map(|t| VarOrTerm::TripleTerm(Box::new(t))),
-    ));
+    ))
+    .boxed();
 
     // [114]   	GraphNodePath 	  ::=   	VarOrTerm | TriplesNodePath | ReifiedTriple
     let mut triples_node_path = Recursive::declare();
@@ -661,7 +675,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         triples_node_path.clone(),
         #[cfg(feature = "sparql-12")]
         reified_triple.clone().map(GraphNodePath::ReifiedTriple),
-    ));
+    ))
+    .boxed();
 
     // [113]   	GraphNode 	  ::=   	VarOrTerm | TriplesNode | ReifiedTriple
     let mut triples_node = Recursive::declare();
@@ -670,14 +685,16 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         triples_node.clone(),
         #[cfg(feature = "sparql-12")]
         reified_triple.clone().map(GraphNode::ReifiedTriple),
-    ));
+    ))
+    .boxed();
 
     // [112]   	AnnotationBlock 	  ::=   	'{|' PropertyListNotEmpty '|}'
     let mut property_list_not_empty = Recursive::declare();
     #[cfg(feature = "sparql-12")]
     let annotation_block = property_list_not_empty
         .clone()
-        .delimited_by(operator("{|"), operator("|}"));
+        .delimited_by(operator("{|"), operator("|}"))
+        .boxed();
 
     // [111]   	Annotation 	  ::=   	( Reifier | AnnotationBlock )*
     #[cfg(feature = "sparql-12")]
@@ -687,14 +704,16 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .or(annotation_block.map(Annotation::AnnotationBlock))
         .spanned()
         .repeated()
-        .collect();
+        .collect()
+        .boxed();
 
     // [110]   	AnnotationBlockPath 	  ::=   	'{|' PropertyListPathNotEmpty '|}'
     let mut property_list_path_not_empty = Recursive::declare();
     #[cfg(feature = "sparql-12")]
     let annotation_block_path = property_list_path_not_empty
         .clone()
-        .delimited_by(operator("{|"), operator("|}"));
+        .delimited_by(operator("{|"), operator("|}"))
+        .boxed();
 
     // [109]   	AnnotationPath 	  ::=   	( Reifier | AnnotationBlockPath )*
     #[cfg(feature = "sparql-12")]
@@ -703,7 +722,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .or(annotation_block_path.map(AnnotationPath::AnnotationBlock))
         .spanned()
         .repeated()
-        .collect();
+        .collect()
+        .boxed();
 
     // [108]   	CollectionPath 	  ::=   	'(' GraphNodePath+ ')'
     let collection_path = graph_node_path
@@ -712,7 +732,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .at_least(1)
         .collect()
         .delimited_by(operator("("), operator(")"))
-        .map(GraphNodePath::Collection);
+        .map(GraphNodePath::Collection)
+        .boxed();
 
     // [107]   	Collection 	  ::=   	'(' GraphNode+ ')'
     let collection = graph_node
@@ -721,25 +742,28 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .at_least(1)
         .collect()
         .delimited_by(operator("("), operator(")"))
-        .map(GraphNode::Collection);
+        .map(GraphNode::Collection)
+        .boxed();
 
     // [106]   	BlankNodePropertyListPath 	  ::=   	'[' PropertyListPathNotEmpty ']'
     let blank_node_property_list_path = property_list_path_not_empty
         .clone()
         .delimited_by(operator("["), operator("]"))
-        .map(GraphNodePath::BlankNodePropertyList);
+        .map(GraphNodePath::BlankNodePropertyList)
+        .boxed();
 
     // [105]   	TriplesNodePath 	  ::=   	CollectionPath | BlankNodePropertyListPath
-    triples_node_path.define(collection_path.or(blank_node_property_list_path));
+    triples_node_path.define(collection_path.or(blank_node_property_list_path).boxed());
 
     // [104]   	BlankNodePropertyList 	  ::=   	'[' PropertyListNotEmpty ']'
     let blank_node_property_list = property_list_not_empty
         .clone()
         .delimited_by(operator("["), operator("]"))
-        .map(GraphNode::BlankNodePropertyList);
+        .map(GraphNode::BlankNodePropertyList)
+        .boxed();
 
     // [103]   	TriplesNode 	  ::=   	Collection | BlankNodePropertyList
-    triples_node.define(collection.or(blank_node_property_list));
+    triples_node.define(collection.or(blank_node_property_list).boxed());
 
     let path = recursive(|path| {
         // [102]   	PathOneInPropertySet 	  ::=   	iri | 'a' | '^' ( iri | 'a' )
@@ -749,7 +773,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             operator("^").ignore_then(iri.map(PathOneInPropertySet::InverseIri)),
             operator("^")
                 .ignore_then(case_sensitive_keyword("a").to(PathOneInPropertySet::InverseA)),
-        ));
+        ))
+        .boxed();
 
         // [101]   	PathNegatedPropertySet 	  ::=   	PathOneInPropertySet | '(' ( PathOneInPropertySet ( '|' PathOneInPropertySet )* )? ')'
         let path_negated_property_set = path_one_in_property_set
@@ -760,7 +785,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 .at_least(1)
                 .collect::<Vec<_>>()
                 .delimited_by(operator("("), operator(")")))
-            .map(Path::NegatedPropertySet);
+            .map(Path::NegatedPropertySet)
+            .boxed();
 
         // [100]   	PathPrimary 	  ::=   	iri | 'a' | '!' PathNegatedPropertySet | '(' Path ')'
         let path_primary = choice((
@@ -768,7 +794,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             case_sensitive_keyword("a").to(Path::A),
             operator("!").ignore_then(path_negated_property_set),
             path.delimited_by(operator("("), operator(")")),
-        ));
+        ))
+        .boxed();
 
         // [94]   	Path 	  ::=   	PathAlternative
         // [95]   	PathAlternative 	  ::=   	PathSequence ( '|' PathSequence )*
@@ -810,7 +837,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
     let object_list_path = object_path
         .separated_by(operator(","))
         .at_least(1)
-        .collect();
+        .collect()
+        .boxed();
 
     // [91]   	VerbSimple 	  ::=   	Var
     let verb_simple = var.map(VarOrPath::Var);
@@ -821,29 +849,35 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
     // [89]   	PropertyListPathNotEmpty 	  ::=   	( VerbPath | VerbSimple ) ObjectListPath ( ';' ( ( VerbPath | VerbSimple ) ObjectListPath )? )*
     let property_list_path_element = verb_simple.or(verb_path).then(object_list_path);
     property_list_path_not_empty.define(
-        property_list_path_element.clone().map(|v| vec![v]).foldl(
-            operator(";")
-                .ignore_then(property_list_path_element.clone().or_not())
-                .repeated(),
-            |mut acc, val| {
-                acc.extend(val);
-                acc
-            },
-        ),
+        property_list_path_element
+            .clone()
+            .map(|v| vec![v])
+            .foldl(
+                operator(";")
+                    .ignore_then(property_list_path_element.clone().or_not())
+                    .repeated(),
+                |mut acc, val| {
+                    acc.extend(val);
+                    acc
+                },
+            )
+            .boxed(),
     );
 
     // [88]   	PropertyListPath 	  ::=   	PropertyListPathNotEmpty?
     let property_list_path = property_list_path_not_empty
         .clone()
         .or_not()
-        .map(Option::unwrap_or_default);
+        .map(Option::unwrap_or_default)
+        .boxed();
 
     // [59]   	ReifiedTripleBlockPath 	  ::=   	ReifiedTriple PropertyListPath
     #[cfg(feature = "sparql-12")]
     let reified_triple_block_path = reified_triple
         .clone()
         .map(GraphNodePath::ReifiedTriple)
-        .then(property_list_path.clone());
+        .then(property_list_path.clone())
+        .boxed();
 
     // [87]   	TriplesSameSubjectPath 	  ::=   	VarOrTerm PropertyListPathNotEmpty | TriplesNodePath PropertyListPath | ReifiedTripleBlockPath
     let triples_same_subject_path = choice((
@@ -854,7 +888,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         triples_node_path.then(property_list_path),
         #[cfg(feature = "sparql-12")]
         reified_triple_block_path,
-    ));
+    ))
+    .boxed();
 
     // [86]   	Object 	  ::=   	GraphNode Annotation
     #[cfg(feature = "sparql-12")]
@@ -869,33 +904,43 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
     let object = graph_node.map(|graph_node| Object { graph_node }).boxed();
 
     // [85]   	ObjectList 	  ::=   	Object ( ',' Object )*
-    let object_list = object.separated_by(operator(",")).at_least(1).collect();
+    let object_list = object
+        .separated_by(operator(","))
+        .at_least(1)
+        .collect()
+        .boxed();
 
     // [83]   	PropertyListNotEmpty 	  ::=   	Verb ObjectList ( ';' ( Verb ObjectList )? )*
     let property_list_element = verb.then(object_list);
     property_list_not_empty.define(
-        property_list_element.clone().map(|v| vec![v]).foldl(
-            operator(";")
-                .ignore_then(property_list_element.clone().or_not())
-                .repeated(),
-            |mut acc, val| {
-                acc.extend(val);
-                acc
-            },
-        ),
+        property_list_element
+            .clone()
+            .map(|v| vec![v])
+            .foldl(
+                operator(";")
+                    .ignore_then(property_list_element.clone().or_not())
+                    .repeated(),
+                |mut acc, val| {
+                    acc.extend(val);
+                    acc
+                },
+            )
+            .boxed(),
     );
 
     // [82]   	PropertyList 	  ::=   	PropertyListNotEmpty?
     let property_list = property_list_not_empty
         .clone()
         .or_not()
-        .map(Option::unwrap_or_default);
+        .map(Option::unwrap_or_default)
+        .boxed();
 
     // [58]   	ReifiedTripleBlock 	  ::=   	ReifiedTriple PropertyList
     #[cfg(feature = "sparql-12")]
     let reified_triple_block = reified_triple
         .map(GraphNode::ReifiedTriple)
-        .then(property_list.clone());
+        .then(property_list.clone())
+        .boxed();
 
     // [81]   	TriplesSameSubject 	  ::=   	VarOrTerm PropertyListNotEmpty | TriplesNode PropertyList | ReifiedTripleBlock
     let triples_same_subject = choice((
@@ -906,7 +951,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         triples_node.then(property_list),
         #[cfg(feature = "sparql-12")]
         reified_triple_block,
-    ));
+    ))
+    .boxed();
 
     // [80]   	ConstructTriples 	  ::=   	TriplesSameSubject ( '.' ConstructTriples? )?
     // also TriplesSameSubject ("." TriplesSameSubject?)*
@@ -917,25 +963,29 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .allow_trailing()
         .collect::<Vec<_>>()
         .delimited_by(operator("{"), operator("}"))
-        .spanned();
+        .spanned()
+        .boxed();
 
     // [76]   	FunctionCall 	  ::=   	iri ArgList
     let function_call = iri
         .then(arg_list)
         .map(|(name, args)| Expression::Function(name, args))
-        .spanned();
+        .spanned()
+        .boxed();
 
     // [75]   	Constraint 	  ::=   	BrackettedExpression | BuiltInCall | FunctionCall
     let constraint = choice((
         bracketted_expression.clone(),
         built_in_call.clone(),
         function_call.clone(),
-    ));
+    ))
+    .boxed();
 
     // [74]   	Filter 	  ::=   	'FILTER' Constraint
     let filter = keyword("FILTER")
         .ignore_then(constraint.clone())
-        .map(GraphPatternElement::Filter);
+        .map(GraphPatternElement::Filter)
+        .boxed();
 
     // [73]   	GroupOrUnionGraphPattern 	  ::=   	GroupGraphPattern ( 'UNION' GroupGraphPattern )*
     let group_or_union_graph_pattern = group_graph_pattern
@@ -943,12 +993,14 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .separated_by(keyword("UNION"))
         .at_least(1)
         .collect::<Vec<_>>()
-        .map(GraphPatternElement::Union);
+        .map(GraphPatternElement::Union)
+        .boxed();
 
     // [72]   	MinusGraphPattern 	  ::=   	'MINUS' GroupGraphPattern
     let minus_graph_pattern = keyword("MINUS")
         .ignore_then(group_graph_pattern.clone())
-        .map(|p| GraphPatternElement::Minus(Box::new(p)));
+        .map(|p| GraphPatternElement::Minus(Box::new(p)))
+        .boxed();
 
     // [69]   	DataBlockValue 	  ::=   	iri | RDFLiteral | NumericLiteral | BooleanLiteral | 'UNDEF' | TripleTermData
     let data_block_value = choice((
@@ -959,7 +1011,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         keyword("UNDEF").to(DataBlockValue::Undef),
         #[cfg(feature = "sparql-12")]
         triple_term_data.map(DataBlockValue::TripleTerm),
-    ));
+    ))
+    .boxed();
 
     // [68]   	InlineDataFull 	  ::=   	( NIL | '(' Var* ')' ) '{' ( '(' DataBlockValue* ')' | NIL )* '}'
     let inline_data_full = var
@@ -977,27 +1030,34 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 .collect::<Vec<_>>()
                 .delimited_by(operator("{"), operator("}"))
                 .spanned(),
-        );
+        )
+        .boxed();
 
     // [67]   	InlineDataOneVar 	  ::=   	Var '{' DataBlockValue* '}'
-    let inline_data_one_var = var.map(|v| vec![v]).spanned().then(
-        data_block_value
-            .map(|v| vec![v])
-            .repeated()
-            .collect()
-            .delimited_by(operator("{"), operator("}"))
-            .spanned(),
-    );
+    let inline_data_one_var = var
+        .map(|v| vec![v])
+        .spanned()
+        .then(
+            data_block_value
+                .map(|v| vec![v])
+                .repeated()
+                .collect()
+                .delimited_by(operator("{"), operator("}"))
+                .spanned(),
+        )
+        .boxed();
 
     // [66]   	DataBlock 	  ::=   	InlineDataOneVar | InlineDataFull
     let data_block = inline_data_one_var
         .or(inline_data_full)
-        .map(|(variables, values)| ValuesClause { variables, values });
+        .map(|(variables, values)| ValuesClause { variables, values })
+        .boxed();
 
     // [65]   	InlineData 	  ::=   	'VALUES' DataBlock
     let inline_data = keyword("VALUES")
         .ignore_then(data_block.clone())
-        .map(GraphPatternElement::Values);
+        .map(GraphPatternElement::Values)
+        .boxed();
 
     // [64]   	Bind 	  ::=   	'BIND' '(' Expression 'AS' Var ')'
     let bind = keyword("BIND")
@@ -1008,7 +1068,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 .then(var)
                 .delimited_by(operator("("), operator(")")),
         )
-        .map(|(e, v)| GraphPatternElement::Bind(e, v));
+        .map(|(e, v)| GraphPatternElement::Bind(e, v))
+        .boxed();
 
     // [63]   	ServiceGraphPattern 	  ::=   	'SERVICE' 'SILENT'? VarOrIri GroupGraphPattern
     let service_graph_pattern = keyword("SERVICE")
@@ -1019,7 +1080,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             silent: silent.is_some(),
             name,
             pattern: Box::new(pattern),
-        });
+        })
+        .boxed();
 
     // [62]   	GraphGraphPattern 	  ::=   	'GRAPH' VarOrIri GroupGraphPattern
     let graph_graph_pattern = keyword("GRAPH")
@@ -1028,17 +1090,20 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .map(|(name, pattern)| GraphPatternElement::Graph {
             name,
             pattern: Box::new(pattern),
-        });
+        })
+        .boxed();
 
     // [61]   	OptionalGraphPattern 	  ::=   	'OPTIONAL' GroupGraphPattern
     let optional_graph_pattern = keyword("OPTIONAL")
         .ignore_then(group_graph_pattern.clone())
-        .map(|p| GraphPatternElement::Optional(Box::new(p)));
+        .map(|p| GraphPatternElement::Optional(Box::new(p)))
+        .boxed();
 
     #[cfg(feature = "sep-0006")]
     let lateral_graph_pattern = keyword("LATERAL")
         .ignore_then(group_graph_pattern.clone())
-        .map(|p| GraphPatternElement::Lateral(Box::new(p)));
+        .map(|p| GraphPatternElement::Lateral(Box::new(p)))
+        .boxed();
 
     // [60]   	GraphPatternNotTriples 	  ::=   	GroupOrUnionGraphPattern | OptionalGraphPattern | MinusGraphPattern | GraphGraphPattern | ServiceGraphPattern | Filter | Bind | InlineData
     let graph_pattern_not_triples = choice((
@@ -1052,7 +1117,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         inline_data,
         #[cfg(feature = "sep-0006")]
         lateral_graph_pattern,
-    ));
+    ))
+    .boxed();
 
     // [57]   	TriplesBlock 	  ::=   	TriplesSameSubjectPath ( '.' TriplesBlock? )?
     // also TriplesSameSubjectPath ( '.' TriplesSameSubjectPath? )*
@@ -1081,7 +1147,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 a
             },
         )
-        .map(GraphPattern::Group);
+        .map(GraphPattern::Group)
+        .boxed();
 
     // [55]   	GroupGraphPattern 	  ::=   	'{' ( SubSelect | GroupGraphPatternSub ) '}'
     let mut sub_select = Recursive::declare();
@@ -1109,7 +1176,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 .clone()
                 .delimited_by(operator("{"), operator("}")),
         )
-        .map(|(graph, triples)| (Some(graph), triples));
+        .map(|(graph, triples)| (Some(graph), triples))
+        .boxed();
 
     // [52]   	Quads 	  ::=   	TriplesTemplate? ( QuadsNotTriples '.'? TriplesTemplate? )*
     let quads = triples_template
@@ -1129,10 +1197,10 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .boxed();
 
     // [50]   	QuadPattern 	  ::=   	'{' Quads '}'
-    let quad_pattern = quads.delimited_by(operator("{"), operator("}"));
+    let quad_pattern = quads.delimited_by(operator("{"), operator("}")).boxed();
 
     // [48]   	GraphRef 	  ::=   	'GRAPH' iri
-    let graph_ref = keyword("GRAPH").ignore_then(iri);
+    let graph_ref = keyword("GRAPH").ignore_then(iri).boxed();
 
     // [49]   	GraphRefAll 	  ::=   	GraphRef | 'DEFAULT' | 'NAMED' | 'ALL'
     let graph_ref_all = choice((
@@ -1140,7 +1208,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         keyword("DEFAULT").to(GraphRefAll::Default),
         keyword("NAMED").to(GraphRefAll::Named),
         keyword("ALL").to(GraphRefAll::All),
-    ));
+    ))
+    .boxed();
 
     // [47]   	GraphOrDefault 	  ::=   	'DEFAULT' | 'GRAPH'? iri
     let graph_or_default = keyword("DEFAULT")
@@ -1148,19 +1217,22 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .or(keyword("GRAPH")
             .or_not()
             .ignore_then(iri)
-            .map(GraphOrDefault::Graph));
+            .map(GraphOrDefault::Graph))
+        .boxed();
 
     // [46]   	UsingClause 	  ::=   	'USING' ( iri | 'NAMED' iri )
-    let using_clause = keyword("USING").ignore_then(
-        iri.map(GraphClause::Default)
-            .or(keyword("NAMED").ignore_then(iri).map(GraphClause::Named)),
-    );
+    let using_clause = keyword("USING")
+        .ignore_then(
+            iri.map(GraphClause::Default)
+                .or(keyword("NAMED").ignore_then(iri).map(GraphClause::Named)),
+        )
+        .boxed();
 
     // [45]   	InsertClause 	  ::=   	'INSERT' QuadPattern
-    let insert_clause = keyword("INSERT").ignore_then(quad_pattern.clone());
+    let insert_clause = keyword("INSERT").ignore_then(quad_pattern.clone()).boxed();
 
     // [44]   	DeleteClause 	  ::=   	'DELETE' QuadPattern
-    let delete_clause = keyword("DELETE").ignore_then(quad_pattern.clone());
+    let delete_clause = keyword("DELETE").ignore_then(quad_pattern.clone()).boxed();
 
     // [43]   	Modify 	  ::=   	( 'WITH' iri )? ( DeleteClause InsertClause? | InsertClause ) UsingClause* 'WHERE' GroupGraphPattern
     let modify = keyword("WITH")
@@ -1183,25 +1255,29 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 using,
                 r#where,
             },
-        );
+        )
+        .boxed();
 
     // [42]   	DeleteWhere 	  ::=   	'DELETE WHERE' QuadPattern
     let delete_where = keyword("DELETE")
         .ignore_then(keyword("WHERE"))
         .ignore_then(quad_pattern.clone())
-        .map(|pattern| Update1::DeleteWhere { pattern });
+        .map(|pattern| Update1::DeleteWhere { pattern })
+        .boxed();
 
     // [41]   	DeleteData 	  ::=   	'DELETE DATA' QuadData
     let delete_data = keyword("DELETE")
         .ignore_then(keyword("DATA"))
         .ignore_then(quad_pattern.clone())
-        .map(|quads| Update1::DeleteData { quads });
+        .map(|quads| Update1::DeleteData { quads })
+        .boxed();
 
     // [40]   	InsertData 	  ::=   	'INSERT DATA' QuadData
     let insert_data = keyword("INSERT")
         .ignore_then(keyword("DATA"))
         .ignore_then(quad_pattern)
-        .map(|quads| Update1::InsertData { quads });
+        .map(|quads| Update1::InsertData { quads })
+        .boxed();
 
     // [39]   	Copy 	  ::=   	'COPY' 'SILENT'? GraphOrDefault 'TO' GraphOrDefault
     let copy = keyword("COPY")
@@ -1213,7 +1289,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             silent: silent.is_some(),
             from,
             to,
-        });
+        })
+        .boxed();
 
     // [38]   	Move 	  ::=   	'MOVE' 'SILENT'? GraphOrDefault 'TO' GraphOrDefault
     let r#move = keyword("MOVE")
@@ -1225,7 +1302,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             silent: silent.is_some(),
             from,
             to,
-        });
+        })
+        .boxed();
 
     // [37]   	Add 	  ::=   	'ADD' 'SILENT'? GraphOrDefault 'TO' GraphOrDefault
     let add = keyword("ADD")
@@ -1237,7 +1315,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             silent: silent.is_some(),
             from,
             to,
-        });
+        })
+        .boxed();
 
     // [36]   	Create 	  ::=   	'CREATE' 'SILENT'? GraphRef
     let create = keyword("CREATE")
@@ -1246,7 +1325,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .map(|(silent, graph)| Update1::Create {
             silent: silent.is_some(),
             graph,
-        });
+        })
+        .boxed();
 
     // [35]   	Drop 	  ::=   	'DROP' 'SILENT'? GraphRefAll
     let drop = keyword("DROP")
@@ -1255,7 +1335,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .map(|(silent, graph)| Update1::Drop {
             silent: silent.is_some(),
             graph,
-        });
+        })
+        .boxed();
 
     // [34]   	Clear 	  ::=   	'CLEAR' 'SILENT'? GraphRefAll
     let clear = keyword("CLEAR")
@@ -1264,7 +1345,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         .map(|(silent, graph)| Update1::Clear {
             silent: silent.is_some(),
             graph,
-        });
+        })
+        .boxed();
 
     // [33]   	Load 	  ::=   	'LOAD' 'SILENT'? iri ( 'INTO' GraphRef )?
     let load = keyword("LOAD")
@@ -1275,7 +1357,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             silent: silent.is_some(),
             from,
             to,
-        });
+        })
+        .boxed();
 
     // [32]   	Update1 	  ::=   	Load | Clear | Drop | Add | Move | Copy | Create | DeleteWhere | Modify | InsertData | DeleteData
     let update1 = choice((
@@ -1290,14 +1373,16 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         modify,
         insert_data,
         delete_data,
-    ));
+    ))
+    .boxed();
 
     // [8]   	VersionSpecifier 	  ::=   	STRING_LITERAL1 | STRING_LITERAL2
     #[cfg(feature = "sparql-12")]
     let version_specifier = select! {
         Token::StringLiteral1(v) | Token::StringLiteral2(v) => &v[1..v.len() -1]
     }
-    .labelled("a string");
+    .labelled("a string")
+    .boxed();
 
     // [7]   	VersionDecl 	  ::=   	'VERSION' VersionSpecifier
     #[cfg(feature = "sparql-12")]
@@ -1309,10 +1394,14 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
     let prefix_decl = keyword("PREFIX")
         .ignore_then(pname_ns)
         .then(iriref)
-        .map(|(prefix, iri)| PrologueDecl::Prefix(prefix, iri));
+        .map(|(prefix, iri)| PrologueDecl::Prefix(prefix, iri))
+        .boxed();
 
     // [5]   	BaseDecl 	  ::=   	'BASE' IRIREF
-    let base_decl = keyword("BASE").ignore_then(iriref).map(PrologueDecl::Base);
+    let base_decl = keyword("BASE")
+        .ignore_then(iriref)
+        .map(PrologueDecl::Base)
+        .boxed();
 
     // [4]   	Prologue 	  ::=   	( BaseDecl | PrefixDecl | VersionDecl )*
     let prologue = choice((
@@ -1322,7 +1411,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         version_decl,
     ))
     .repeated()
-    .collect::<Vec<_>>();
+    .collect::<Vec<_>>()
+    .boxed();
 
     // [31]   	Update 	  ::=   	Prologue ( Update1 ( ';' Update )? )?
     // or Update 	  ::=   	Prologue (Update1 ( ';' Prologue Update1 )* (';' Prologue)?)?
@@ -1373,7 +1463,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                     format!("The query offset must be a non negative integer, found {o}"),
                 )
             })
-        });
+        })
+        .boxed();
 
     // [28]   	LimitClause 	  ::=   	'LIMIT' INTEGER
     let limit_clause = keyword("LIMIT")
@@ -1390,7 +1481,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                     format!("The query limit must be a non negative integer, found {l}"),
                 )
             })
-        });
+        })
+        .boxed();
 
     // [27]   	LimitOffsetClauses 	  ::=   	LimitClause OffsetClause? | OffsetClause LimitClause?
     let limit_offset_clauses = limit_clause
@@ -1402,7 +1494,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
         })
         .or(offset_clause
             .then(limit_clause.or_not())
-            .map(|(offset, limit)| LimitOffsetClauses { offset, limit }));
+            .map(|(offset, limit)| LimitOffsetClauses { offset, limit }))
+        .boxed();
 
     // [26]   	OrderCondition 	  ::=   	( ( 'ASC' | 'DESC' ) BrackettedExpression ) | ( Constraint | Var )
     let order_condition = choice((
@@ -1419,19 +1512,22 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             }),
         constraint.clone().map(OrderCondition::Asc),
         var.map(Expression::Var).spanned().map(OrderCondition::Asc),
-    ));
+    ))
+    .boxed();
 
     // [25]   	OrderClause 	  ::=   	'ORDER' 'BY' OrderCondition+
     let order_clause = keyword("ORDER")
         .ignore_then(keyword("BY"))
-        .ignore_then(order_condition.repeated().at_least(1).collect::<Vec<_>>());
+        .ignore_then(order_condition.repeated().at_least(1).collect::<Vec<_>>())
+        .boxed();
 
     // [24]   	HavingCondition 	  ::=   	Constraint
     let having_condition = constraint;
 
     // [23]   	HavingClause 	  ::=   	'HAVING' HavingCondition+
-    let having_clause =
-        keyword("HAVING").ignore_then(having_condition.repeated().at_least(1).collect());
+    let having_clause = keyword("HAVING")
+        .ignore_then(having_condition.repeated().at_least(1).collect())
+        .boxed();
 
     // [22]   	GroupCondition 	  ::=   	BuiltInCall | FunctionCall | '(' Expression ( 'AS' Var )? ')' | Var
     let group_condition = choice((
@@ -1442,12 +1538,14 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
             .then(keyword("AS").ignore_then(var).or_not())
             .delimited_by(operator("("), operator(")")),
         var.map(Expression::Var).spanned().map(|v| (v, None)),
-    ));
+    ))
+    .boxed();
 
     // [21]   	GroupClause 	  ::=   	'GROUP' 'BY' GroupCondition+
     let group_clause = keyword("GROUP")
         .ignore_then(keyword("BY"))
-        .ignore_then(group_condition.repeated().at_least(1).collect::<Vec<_>>());
+        .ignore_then(group_condition.repeated().at_least(1).collect::<Vec<_>>())
+        .boxed();
 
     // [20]   	SolutionModifier 	  ::=   	GroupClause? HavingClause? OrderClause? LimitOffsetClauses?
     let solution_modifier = group_clause
@@ -1479,13 +1577,16 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
     // [17]   	NamedGraphClause 	  ::=   	'NAMED' SourceSelector
     let named_graph_clause = keyword("NAMED")
         .ignore_then(source_selector)
-        .map(GraphClause::Named);
+        .map(GraphClause::Named)
+        .boxed();
 
     // [16]   	DefaultGraphClause 	  ::=   	SourceSelector
-    let default_graph_clause = source_selector.map(GraphClause::Default);
+    let default_graph_clause = source_selector.map(GraphClause::Default).boxed();
 
     // [15]   	DatasetClause 	  ::=   	'FROM' ( DefaultGraphClause | NamedGraphClause )
-    let dataset_clause = keyword("FROM").ignore_then(default_graph_clause.or(named_graph_clause));
+    let dataset_clause = keyword("FROM")
+        .ignore_then(default_graph_clause.or(named_graph_clause))
+        .boxed();
 
     // [14]   	AskQuery 	  ::=   	'ASK' DatasetClause* WhereClause SolutionModifier
     let ask_query = keyword("ASK")
@@ -1498,7 +1599,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 where_clause,
                 solution_modifier,
             },
-        );
+        )
+        .boxed();
 
     // [13]   	DescribeQuery 	  ::=   	'DESCRIBE' ( VarOrIri+ | '*' ) DatasetClause* WhereClause? SolutionModifier
     let describe_query = keyword("DESCRIBE")
@@ -1522,42 +1624,47 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 where_clause,
                 solution_modifier,
             },
-        );
+        )
+        .boxed();
 
     // [12]   	ConstructQuery 	  ::=   	'CONSTRUCT' ( ConstructTemplate DatasetClause* WhereClause SolutionModifier | DatasetClause* 'WHERE' '{' TriplesTemplate? '}' SolutionModifier )
-    let construct_query = keyword("CONSTRUCT").ignore_then(
-        construct_template
-            .then(dataset_clause.clone().repeated().collect())
-            .then(where_clause.clone())
-            .then(solution_modifier.clone())
-            .map(
-                |(((template, dataset_clause), where_clause), solution_modifier)| ConstructQuery {
-                    template,
-                    dataset_clause,
-                    where_clause: Some(where_clause),
-                    solution_modifier,
-                },
-            )
-            .or(dataset_clause
-                .clone()
-                .repeated()
-                .collect()
-                .then_ignore(keyword("WHERE"))
-                .then(
-                    triples_template
-                        .delimited_by(operator("{"), operator("}"))
-                        .spanned(),
-                )
+    let construct_query = keyword("CONSTRUCT")
+        .ignore_then(
+            construct_template
+                .then(dataset_clause.clone().repeated().collect())
+                .then(where_clause.clone())
                 .then(solution_modifier.clone())
                 .map(
-                    |((dataset_clause, template), solution_modifier)| ConstructQuery {
-                        template,
-                        dataset_clause,
-                        where_clause: None,
-                        solution_modifier,
+                    |(((template, dataset_clause), where_clause), solution_modifier)| {
+                        ConstructQuery {
+                            template,
+                            dataset_clause,
+                            where_clause: Some(where_clause),
+                            solution_modifier,
+                        }
                     },
-                )),
-    );
+                )
+                .or(dataset_clause
+                    .clone()
+                    .repeated()
+                    .collect()
+                    .then_ignore(keyword("WHERE"))
+                    .then(
+                        triples_template
+                            .delimited_by(operator("{"), operator("}"))
+                            .spanned(),
+                    )
+                    .then(solution_modifier.clone())
+                    .map(
+                        |((dataset_clause, template), solution_modifier)| ConstructQuery {
+                            template,
+                            dataset_clause,
+                            where_clause: None,
+                            solution_modifier,
+                        },
+                    )),
+        )
+        .boxed();
 
     // [11]   	SelectClause 	  ::=   	'SELECT' ( 'DISTINCT' | 'REDUCED' )? ( ( Var | ( '(' Expression 'AS' Var ')' ) )+ | '*' )
     let select_clause = keyword("SELECT")
@@ -1584,7 +1691,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 .or(operator("*").to(SelectVariables::Star))
                 .spanned(),
         )
-        .map(|(option, bindings)| SelectClause { option, bindings });
+        .map(|(option, bindings)| SelectClause { option, bindings })
+        .boxed();
 
     // [10]   	SubSelect 	  ::=   	SelectClause WhereClause SolutionModifier ValuesClause
     sub_select.define(
@@ -1602,7 +1710,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                         values_clause,
                     }))
                 },
-            ),
+            )
+            .boxed(),
     );
 
     // [9]   	SelectQuery 	  ::=   	SelectClause DatasetClause* WhereClause SolutionModifier
@@ -1617,7 +1726,8 @@ fn build_parsers<'src, I: ValueInput<'src, Token = Token<'src>, Span = SimpleSpa
                 where_clause,
                 solution_modifier,
             },
-        );
+        )
+        .boxed();
 
     // [2]   	Query 	  ::=   	Prologue ( SelectQuery | ConstructQuery | DescribeQuery | AskQuery ) ValuesClause
     let query = prologue
